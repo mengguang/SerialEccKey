@@ -1,131 +1,133 @@
-### operate atecc508a over serial port
-
-## protocol
+### NewKey Serial Protocol
 
 1. input protocol
 
-    param | length | value
+    param | length | value 
     ---|---|---
-    begin magic | 1 byte | 0x88
-    data length | 1 byte | 1 + 1 + 1 + 2 + n + 1
-    opcode      | 1 byte |
-    param1      | 1 byte |
-    param2      | 2 byte |
-    data        | n byte |
-    end magic   | 1 byte | 0x99
-    pad         | total 64 byte| 0x00
-
+    begin magic | 1 byte        | 0x88
+    version     | 1 byte        | 0x01
+    opcode      | 1 byte        | 
+    param1      | 1 byte        |
+    param2      | 2 byte        |
+    data        | n bytes       |
+    pad         | up to 96 byte | 0x00
+    end magic   | 1 byte        | 0x99
+    
 2. output protocol
-
-    param | length | value
+    
+    param | length | value 
     ---|---|---
-    begin magic | 1 byte | 0x88
-    data length | 1 byte | 1 + n + 1
-    result      | n byte |
-    end magic   | 1 byte | 0x99
-    pad         | total 96 byte| 0x00
+    begin magic | 1 byte        | 0x88
+    version     | 1 byte        | 0x01
+    result      | 1 byte        |
+    data        | n bytes       |
+    pad         | up to 96 byte | 0x00
+    end magic   | 1 byte        | 0x99
 
-3. generate new private key and get public key.
+### Commands
+
+1. change password
 
     input:
-
-    param | length | value
+    
+    param | length | value 
     ---|---|---
     begin magic | 1 byte | 0x88
-    data length | 1 byte | 0x06
-    opcode      | 1 byte | 0x40
-    param1      | 1 byte | 0x04
+    version     | 1 byte | 0x01
+    opcode      | 1 byte | 0x12
+    param1      | 1 byte | 0x00
     param2      | 2 byte | 0x00 0x00
+    old password        | 32 byte| 
+    new password        | 32 byte| 
+    pad         | up to 96 bytes | 0x00
     end magic   | 1 byte | 0x99
-
-    example:
-    88064004000099000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-
-    success output:
-
-    param | length | value
+    
+    output:
+    
+    param | length | value 
     ---|---|---
     begin magic | 1 byte | 0x88
-    data length | 1 byte | 0x42
-    result        | 64 byte | public key
+    version     | 1 byte | 0x01
+    result      | 1 byte | 0x00
+    pad         | up to 96 byte| 0x00
     end magic   | 1 byte | 0x99
-
-    error output:
-
-    param | length | value
-    ---|---|---
-    begin magic | 1 byte | 0x88
-    data length | 1 byte | 0x03
-    result      | 1 byte | error code
-    end magic   | 1 byte | 0x99
-
-
-4. get public key from existing private key.
+    
+2. write private key.
 
     input:
-
-    param | length | value
+    
+    param | length | value 
     ---|---|---
     begin magic | 1 byte | 0x88
-    data length | 1 byte | 0x06
+    version     | 1 byte | 0x01
+    opcode      | 1 byte | 0x46
+    param1      | 1 byte | 0x00
+    param2      | 2 byte | 0x00 0x00
+    password        | 32 byte| 
+    private key     | 32 byte| 
+    pad         | up to 96 bytes | 0x00
+    end magic   | 1 byte | 0x99
+    
+    output:
+    
+    param | length | value 
+    ---|---|---
+    begin magic | 1 byte | 0x88
+    version     | 1 byte | 0x01
+    result      | 1 byte |
+    pad         | up to 96 byte| 0x00
+    end magic   | 1 byte | 0x99
+
+3. get public key from existing private key.
+
+    input:
+    
+    param | length | value 
+    ---|---|---
+    begin magic | 1 byte | 0x88
+    version     | 1 byte | 0x01
     opcode      | 1 byte | 0x40
     param1      | 1 byte | 0x00
     param2      | 2 byte | 0x00 0x00
+    password    | 32 byte| 
+    pad         | up to 96 byte| 0x00
     end magic   | 1 byte | 0x99
-
-    example:
-    88064000000099000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-
-    success output:
-
-    param | length | value
+    
+    output:
+    
+    param | length | value 
     ---|---|---
     begin magic | 1 byte | 0x88
-    data length | 1 byte | 0x42
-    result      | 64 byte | public key
+    version     | 1 byte | 0x01
+    result      | 1 byte |
+    data        | 64 byte| public key
+    pad         | up to 96 byte| 0x00
     end magic   | 1 byte | 0x99
 
-    error output:
-
-    param | length | value
-    ---|---|---
-    begin magic | 1 byte | 0x88
-    data length | 1 byte | 0x03
-    result      | 1 byte | error code
-    end magic   | 1 byte | 0x99
-
-
-5. sign 32 byte hash data and return sign data.
+4. sign 32 byte hash data and return sign data.
 
     input:
-
-    param | length | value
+    
+    param | length | value 
     ---|---|---
     begin magic | 1 byte | 0x88
-    data length | 1 byte | 0x26
+    version     | 1 byte | 0x01
     opcode      | 1 byte | 0x41
     param1      | 1 byte | 0x80
     param2      | 2 byte | 0x00 0x00
+    password    | 32 byte| 
     data        | 32 byte| hash data
+    pad         | up to 96 byte| 0x00
     end magic   | 1 byte | 0x99
-
-    example:
-    88264180000001020102010201020102010201020102010201020102010201020102010201029900000000000000000000000000000000000000000000000000
-
-    success output:
-
-    param | length | value
+    
+    output:
+    
+    param | length | value 
     ---|---|---
     begin magic | 1 byte | 0x88
-    data length | 1 byte | 0x42
-    result      | 64 byte | sign data
+    version     | 1 byte | 0x01
+    result      | 1 byte |
+    data        | 64 byte| sign data
+    pad         | up to 96 byte| 0x00
     end magic   | 1 byte | 0x99
-
-    error output:
-
-    param | length | value
-    ---|---|---
-    begin magic | 1 byte | 0x88
-    data length | 1 byte | 0x03
-    result      | 1 byte | error code
-    end magic   | 1 byte | 0x99
+    
