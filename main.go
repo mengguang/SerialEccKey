@@ -157,6 +157,33 @@ func (p *NewKey) WritePrivateKey(password [32]byte, privateKey [32]byte) error {
 	return nil
 }
 
+func (p *NewKey) ReadSerialNumber() ([9]byte, error) {
+	var request [ProtocolBufferSize]byte
+	request[MagicBeginPos] = MagicBegin
+	request[ProtocolVersionPos] = ProtocolVersion
+	request[ProtocolOpcodePos] = 0x02
+	request[ProtocolParam1Pos] = 0x80
+
+	request[MagicEndPos] = MagicEnd
+
+	var resultData [9]byte
+
+	err := p.writeRequest(request)
+	if err != nil {
+		return resultData,err
+	}
+	reply, err := p.readReply()
+	if err != nil {
+		return resultData,err
+	}
+	result := reply[ProtocolResultCodePos]
+	if result != ProtocolResultSuccess {
+		return resultData,fmt.Errorf("operation failed: %v",result)
+	}
+	copy(resultData[:],reply[ProtocolResultDataPos:])
+	return resultData,nil
+}
+
 func (p *NewKey) GetPublicKey(password [32]byte) ([64]byte, error) {
 	var request [ProtocolBufferSize]byte
 	request[MagicBeginPos] = MagicBegin
@@ -216,14 +243,21 @@ func (p *NewKey) SignData(password [32]byte, data[32]byte) ([64]byte, error) {
 }
 
 func main() {
-	newkey := NewKey{Name: "COM6", Baud: 115200}
+	newkey := NewKey{Name: "COM3", Baud: 115200}
 	err := newkey.OpenPort()
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	serialNumber,err := newkey.ReadSerialNumber()
+	if err != nil {
+		fmt.Println(err)
+	} else {
+		fmt.Printf("Serial Number: %X\n",serialNumber)
+	}
+
 	var password [32]byte
-	copy(password[:],"88888888888888888888888888888888")
+	copy(password[:],"123qwe")
 
 	err = newkey.ChangePassword(password,password)
 	if err != nil {
