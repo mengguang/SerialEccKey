@@ -20,7 +20,8 @@ const ProtocolResultSuccess = 0x00
 
 const ProtocolBufferSize = 96
 const MagicBeginPos = 0
-const MagicEndPos = 95
+const MagicEndPos = 93
+const ProtocolCrcPos = 94
 
 const ProtocolVersionPos = 1
 const ProtocolOpcodePos = 2
@@ -37,6 +38,34 @@ type NewKey struct  {
 	Baud int
 }
 
+func atCRC(data []byte) [2]byte {
+	var counter = 0
+	var crcRegister uint16 = 0
+	var polynom uint16 = 0x8005
+	var shiftRegister uint8 = 0
+	var dataBit uint8 = 0
+	var crcBit uint8 = 0
+
+	for counter = 0; counter < len(data); counter++ {
+		for shiftRegister = 0x01; shiftRegister > 0x00; shiftRegister <<= 1 {
+			if (data[counter] & shiftRegister) == 0 {
+				dataBit = 0
+			} else {
+				dataBit = 1
+			}
+			crcBit = uint8(crcRegister >> 15)
+			crcRegister <<= 1
+			if dataBit != crcBit {
+				crcRegister ^= polynom
+			}
+		}
+	}
+	var crcLe [2]byte
+	crcLe[0] = uint8(crcRegister & 0xFF)
+	crcLe[1] = uint8(crcRegister >> 8)
+	return crcLe
+}
+
 func (p *NewKey) OpenPort() error {
 	c := &serial.Config{Name: p.Name, Baud: p.Baud, ReadTimeout: time.Millisecond * 200}
 	s, err := serial.OpenPort(c)
@@ -46,7 +75,11 @@ func (p *NewKey) OpenPort() error {
 	p.Port = s
 	return nil
 }
+
 func (p *NewKey) writeRequest(request [ProtocolBufferSize]byte) error {
+	crc := atCRC(request[:ProtocolCrcPos])
+	request[ProtocolCrcPos] = crc[0]
+	request[ProtocolCrcPos+1] = crc[1]
 	n, err := p.Port.Write(request[:])
 	if err != nil {
 		return err
@@ -76,7 +109,13 @@ func (p *NewKey) readReply() ([ProtocolBufferSize]byte, error) {
 		//fmt.Printf("read %v\n", n)
 		nRead += n
 		if nRead == ProtocolBufferSize {
-			return reply,nil
+			crc := atCRC(reply[:ProtocolCrcPos])
+			if (crc[0] == reply[ProtocolCrcPos]) && (crc[1] == reply[ProtocolCrcPos+1]) {
+				fmt.Printf("check crc ok.\n")
+				return reply,nil
+			} else {
+				return reply,fmt.Errorf("reply crc check error")
+			}
 		}
 	}
 }
@@ -242,6 +281,53 @@ func (p *NewKey) SignData(password [32]byte, data[32]byte) ([64]byte, error) {
 	return resultData,nil
 }
 
+func benchmark() {
+	newkey := NewKey{Name: "COM3", Baud: 115200}
+	err := newkey.OpenPort()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for {
+		serialNumber,err := newkey.ReadSerialNumber()
+		if err != nil {
+			fmt.Println(err)
+		} else {
+			fmt.Printf("Serial Number: %X\n",serialNumber)
+		}
+
+		var password [32]byte
+		copy(password[:],"123qwe")
+
+		rawPublicKey, err := newkey.GetPublicKey(password)
+		if err != nil {
+			fmt.Println(err)
+		} else {
+			fmt.Println("GetPublicKey successed.")
+		}
+
+		x := big.Int{}
+		y := big.Int{}
+		keyLen := len(rawPublicKey)
+		x.SetBytes(rawPublicKey[:(keyLen / 2)])
+		y.SetBytes(rawPublicKey[(keyLen / 2):])
+
+		fmt.Printf("public key:\n%X\t%X\n",&x,&y)
+
+		hash := sha256.Sum256(password[:])
+		sign, err := newkey.SignData(password,hash)
+		if err != nil {
+			fmt.Println(err)
+		} else {
+			fmt.Println("SignData successed.")
+		}
+		//fmt.Printf("SignData:\n%X\n",sign)
+		signResult := newkey.Verify(rawPublicKey[:],hash[:],sign[:])
+		fmt.Printf("verify result: %v",signResult)
+	}
+
+}
+
 func main() {
 	newkey := NewKey{Name: "COM3", Baud: 115200}
 	err := newkey.OpenPort()
@@ -314,5 +400,8 @@ func main() {
 	//fmt.Printf("SignData:\n%X\n",sign)
 	signResult := newkey.Verify(rawPublicKey[:],hash[:],sign[:])
 	fmt.Printf("verify result: %v",signResult)
+	newkey.Port.Close()
+
+	benchmark()
 
 }
