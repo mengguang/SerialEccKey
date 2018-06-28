@@ -12,6 +12,7 @@
     data        | n bytes       |
     pad         | up to 96 byte | 0x00
     end magic   | 1 byte        | 0x99
+    crc16       | 2 byte        | 
     
 2. output protocol
     
@@ -23,6 +24,7 @@
     data        | n bytes       |
     pad         | up to 96 byte | 0x00
     end magic   | 1 byte        | 0x99
+    crc16       | 2 byte        | 
 
 ### Commands
 
@@ -41,6 +43,7 @@
     new password        | 32 byte| 
     pad         | up to 96 bytes | 0x00
     end magic   | 1 byte | 0x99
+    crc16       | 2 byte        | 
     
     output:
     
@@ -51,6 +54,7 @@
     result      | 1 byte | 0x00
     pad         | up to 96 byte| 0x00
     end magic   | 1 byte | 0x99
+    crc16       | 2 byte        | 
     
 2. write private key.
 
@@ -67,6 +71,7 @@
     private key     | 32 byte| 
     pad         | up to 96 bytes | 0x00
     end magic   | 1 byte | 0x99
+    crc16       | 2 byte        | 
     
     output:
     
@@ -77,6 +82,8 @@
     result      | 1 byte |
     pad         | up to 96 byte| 0x00
     end magic   | 1 byte | 0x99
+    crc16       | 2 byte        | 
+    
 
 3. get public key from existing private key.
 
@@ -92,6 +99,7 @@
     password    | 32 byte| 
     pad         | up to 96 byte| 0x00
     end magic   | 1 byte | 0x99
+    crc16       | 2 byte        | 
     
     output:
     
@@ -103,6 +111,7 @@
     data        | 64 byte| public key
     pad         | up to 96 byte| 0x00
     end magic   | 1 byte | 0x99
+    crc16       | 2 byte        | 
 
 4. sign 32 byte hash data and return sign data.
 
@@ -119,6 +128,7 @@
     data        | 32 byte| hash data
     pad         | up to 96 byte| 0x00
     end magic   | 1 byte | 0x99
+    crc16       | 2 byte        | 
     
     output:
     
@@ -130,4 +140,33 @@
     data        | 64 byte| sign data
     pad         | up to 96 byte| 0x00
     end magic   | 1 byte | 0x99
+    crc16       | 2 byte        | 
     
+5. get device serial number.
+
+    input:
+    
+    param | length | value 
+    ---|---|---
+    begin magic | 1 byte | 0x88
+    version     | 1 byte | 0x01
+    opcode      | 1 byte | 0x02
+    param1      | 1 byte | 0x80
+    param2      | 2 byte | 0x00 0x00
+    pad         | up to 96 byte| 0x00
+    end magic   | 1 byte | 0x99
+    crc16       | 2 byte        | 
+    
+    output:
+    
+    param | length | value 
+    ---|---|---
+    begin magic | 1 byte | 0x88
+    version     | 1 byte | 0x01
+    result      | 1 byte |
+    data        | 9 byte| serial number
+    pad         | up to 96 byte| 0x00
+    end magic   | 1 byte | 0x99
+    crc16       | 2 byte        | 
+
+
