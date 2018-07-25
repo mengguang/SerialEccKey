@@ -32,6 +32,9 @@ const ProtocolDataPos = 6
 const ProtocolResultCodePos = 2
 const ProtocolResultDataPos = 3
 
+const SerialPort = "COM8"
+const DefaultPassword ="88888888888888888888888888888888"
+
 type NewKey struct  {
 	Port *serial.Port
 	Name string
@@ -282,7 +285,7 @@ func (p *NewKey) SignData(password [32]byte, data[32]byte) ([64]byte, error) {
 }
 
 func benchmark() {
-	newkey := NewKey{Name: "COM3", Baud: 115200}
+	newkey := NewKey{Name: SerialPort, Baud: 115200}
 	err := newkey.OpenPort()
 	if err != nil {
 		log.Fatal(err)
@@ -297,7 +300,7 @@ func benchmark() {
 		}
 
 		var password [32]byte
-		copy(password[:],"123qwe")
+		copy(password[:],DefaultPassword)
 
 		rawPublicKey, err := newkey.GetPublicKey(password)
 		if err != nil {
@@ -329,7 +332,7 @@ func benchmark() {
 }
 
 func main() {
-	newkey := NewKey{Name: "COM3", Baud: 115200}
+	newkey := NewKey{Name: SerialPort, Baud: 115200}
 	err := newkey.OpenPort()
 	if err != nil {
 		log.Fatal(err)
@@ -343,7 +346,7 @@ func main() {
 	}
 
 	var password [32]byte
-	copy(password[:],"123qwe")
+	copy(password[:],DefaultPassword)
 
 	err = newkey.ChangePassword(password,password)
 	if err != nil {
