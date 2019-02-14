@@ -169,4 +169,31 @@
     end magic   | 1 byte | 0x99
     crc16       | 2 byte        | 
 
+6. initiate session. after this command, protocol will be encrypted with AES.
+
+    input:
+    
+    param | length | value 
+    ---|---|---
+    begin magic | 1 byte | 0x88
+    version     | 1 byte | 0x01
+    opcode      | 1 byte | 0x01
+    param1      | 1 byte | 0x00
+    param2      | 2 byte | 0x00 0x00
+    pad         | up to 96 byte| 0x00
+    end magic   | 1 byte | 0x99
+    crc16       | 2 byte        | 
+    
+    output:
+    
+    param | length | value 
+    ---|---|---
+    begin magic | 1 byte | 0x88
+    version     | 1 byte | 0x01
+    result      | 1 byte |
+    data        | 0 byte | 0x00
+    pad         | up to 96 byte| 0x00
+    end magic   | 1 byte | 0x99
+    crc16       | 2 byte        | 
+
 
