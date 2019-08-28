@@ -1,15 +1,17 @@
 package main
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/sha256"
+	"flag"
+	"fmt"
 	"github.com/tarm/serial"
 	"log"
 	"math/big"
-	"crypto/elliptic"
-	"crypto/ecdsa"
-	"fmt"
+	"os"
 	"time"
-	"crypto/rand"
-	"crypto/sha256"
 )
 
 const MagicBegin = 0x88
@@ -26,16 +28,17 @@ const ProtocolCrcPos = 94
 const ProtocolVersionPos = 1
 const ProtocolOpcodePos = 2
 const ProtocolParam1Pos = 3
+
 //const ProtocolParam2Pos = 4
 const ProtocolDataPos = 6
 
 const ProtocolResultCodePos = 2
 const ProtocolResultDataPos = 3
 
-const SerialPort = "COM8"
-const DefaultPassword ="88888888888888888888888888888888"
+const SerialPort = "COM10"
+const DefaultPassword = "88888888888888888888888888888888"
 
-type NewKey struct  {
+type NewKey struct {
 	Port *serial.Port
 	Name string
 	Baud int
@@ -88,7 +91,7 @@ func (p *NewKey) writeRequest(request [ProtocolBufferSize]byte) error {
 		return err
 	}
 	if n != ProtocolBufferSize {
-		return fmt.Errorf("write %v bytes not equal to %v",n,ProtocolBufferSize)
+		return fmt.Errorf("write %v bytes not equal to %v", n, ProtocolBufferSize)
 	}
 	return nil
 }
@@ -100,13 +103,13 @@ func (p *NewKey) readReply() ([ProtocolBufferSize]byte, error) {
 	for {
 		n, err := p.Port.Read(reply[nRead:])
 		if err != nil {
-			return reply,err
+			return reply, err
 		}
 		if n == 0 {
 			retry++
 			if retry > 5 {
 				err = fmt.Errorf("read retry too many times, abort")
-				return reply,err
+				return reply, err
 			}
 		}
 		//fmt.Printf("read %v\n", n)
@@ -115,9 +118,9 @@ func (p *NewKey) readReply() ([ProtocolBufferSize]byte, error) {
 			crc := atCRC(reply[:ProtocolCrcPos])
 			if (crc[0] == reply[ProtocolCrcPos]) && (crc[1] == reply[ProtocolCrcPos+1]) {
 				fmt.Printf("check crc ok.\n")
-				return reply,nil
+				return reply, nil
 			} else {
-				return reply,fmt.Errorf("reply crc check error")
+				return reply, fmt.Errorf("reply crc check error")
 			}
 		}
 	}
@@ -151,8 +154,8 @@ func (p *NewKey) ChangePassword(oldPassword [32]byte, newPassword [32]byte) erro
 	request[ProtocolVersionPos] = ProtocolVersion
 	request[ProtocolOpcodePos] = 0x12
 
-	copy(request[ProtocolDataPos:],oldPassword[:])
-	copy(request[ProtocolDataPos+32:],newPassword[:])
+	copy(request[ProtocolDataPos:], oldPassword[:])
+	copy(request[ProtocolDataPos+32:], newPassword[:])
 
 	request[MagicEndPos] = MagicEnd
 
@@ -167,7 +170,7 @@ func (p *NewKey) ChangePassword(oldPassword [32]byte, newPassword [32]byte) erro
 
 	result := reply[ProtocolResultCodePos]
 	if result != ProtocolResultSuccess {
-		return fmt.Errorf("operation failed: %v",result)
+		return fmt.Errorf("operation failed: %v", result)
 	}
 	return nil
 }
@@ -178,8 +181,8 @@ func (p *NewKey) WritePrivateKey(password [32]byte, privateKey [32]byte) error {
 	request[ProtocolVersionPos] = ProtocolVersion
 	request[ProtocolOpcodePos] = 0x46
 
-	copy(request[ProtocolDataPos:],password[:])
-	copy(request[ProtocolDataPos+32:],privateKey[:])
+	copy(request[ProtocolDataPos:], password[:])
+	copy(request[ProtocolDataPos+32:], privateKey[:])
 
 	request[MagicEndPos] = MagicEnd
 
@@ -194,7 +197,7 @@ func (p *NewKey) WritePrivateKey(password [32]byte, privateKey [32]byte) error {
 
 	result := reply[ProtocolResultCodePos]
 	if result != ProtocolResultSuccess {
-		return fmt.Errorf("operation failed: %v",result)
+		return fmt.Errorf("operation failed: %v", result)
 	}
 	return nil
 }
@@ -212,18 +215,18 @@ func (p *NewKey) ReadSerialNumber() ([9]byte, error) {
 
 	err := p.writeRequest(request)
 	if err != nil {
-		return resultData,err
+		return resultData, err
 	}
 	reply, err := p.readReply()
 	if err != nil {
-		return resultData,err
+		return resultData, err
 	}
 	result := reply[ProtocolResultCodePos]
 	if result != ProtocolResultSuccess {
-		return resultData,fmt.Errorf("operation failed: %v",result)
+		return resultData, fmt.Errorf("operation failed: %v", result)
 	}
-	copy(resultData[:],reply[ProtocolResultDataPos:])
-	return resultData,nil
+	copy(resultData[:], reply[ProtocolResultDataPos:])
+	return resultData, nil
 }
 
 func (p *NewKey) GetPublicKey(password [32]byte) ([64]byte, error) {
@@ -232,7 +235,7 @@ func (p *NewKey) GetPublicKey(password [32]byte) ([64]byte, error) {
 	request[ProtocolVersionPos] = ProtocolVersion
 	request[ProtocolOpcodePos] = 0x40
 
-	copy(request[ProtocolDataPos:],password[:])
+	copy(request[ProtocolDataPos:], password[:])
 
 	request[MagicEndPos] = MagicEnd
 
@@ -240,29 +243,29 @@ func (p *NewKey) GetPublicKey(password [32]byte) ([64]byte, error) {
 
 	err := p.writeRequest(request)
 	if err != nil {
-		return resultData,err
+		return resultData, err
 	}
 	reply, err := p.readReply()
 	if err != nil {
-		return resultData,err
+		return resultData, err
 	}
 	result := reply[ProtocolResultCodePos]
 	if result != ProtocolResultSuccess {
-		return resultData,fmt.Errorf("operation failed: %v",result)
+		return resultData, fmt.Errorf("operation failed: %v", result)
 	}
-	copy(resultData[:],reply[ProtocolResultDataPos:])
-	return resultData,nil
+	copy(resultData[:], reply[ProtocolResultDataPos:])
+	return resultData, nil
 }
 
-func (p *NewKey) SignData(password [32]byte, data[32]byte) ([64]byte, error) {
+func (p *NewKey) SignData(password [32]byte, data [32]byte) ([64]byte, error) {
 	var request [ProtocolBufferSize]byte
 	request[MagicBeginPos] = MagicBegin
 	request[ProtocolVersionPos] = ProtocolVersion
 	request[ProtocolOpcodePos] = 0x41
 	request[ProtocolParam1Pos] = 0x80
 
-	copy(request[ProtocolDataPos:],password[:])
-	copy(request[ProtocolDataPos+32:],data[:])
+	copy(request[ProtocolDataPos:], password[:])
+	copy(request[ProtocolDataPos+32:], data[:])
 
 	request[MagicEndPos] = MagicEnd
 
@@ -270,39 +273,39 @@ func (p *NewKey) SignData(password [32]byte, data[32]byte) ([64]byte, error) {
 
 	err := p.writeRequest(request)
 	if err != nil {
-		return resultData,err
+		return resultData, err
 	}
 	reply, err := p.readReply()
 	if err != nil {
-		return resultData,err
+		return resultData, err
 	}
 	result := reply[ProtocolResultCodePos]
 	if result != ProtocolResultSuccess {
-		return resultData,fmt.Errorf("operation failed: %v",result)
+		return resultData, fmt.Errorf("operation failed: %v", result)
 	}
-	copy(resultData[:],reply[ProtocolResultDataPos:])
-	return resultData,nil
+	copy(resultData[:], reply[ProtocolResultDataPos:])
+	return resultData, nil
 }
 
 func benchmark() {
-	newkey := NewKey{Name: SerialPort, Baud: 115200}
-	err := newkey.OpenPort()
+	newKey := NewKey{Name: SerialPort, Baud: 115200}
+	err := newKey.OpenPort()
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	for {
-		serialNumber,err := newkey.ReadSerialNumber()
+		serialNumber, err := newKey.ReadSerialNumber()
 		if err != nil {
 			fmt.Println(err)
 		} else {
-			fmt.Printf("Serial Number: %X\n",serialNumber)
+			fmt.Printf("Serial Number: %X\n", serialNumber)
 		}
 
 		var password [32]byte
-		copy(password[:],DefaultPassword)
+		copy(password[:], DefaultPassword)
 
-		rawPublicKey, err := newkey.GetPublicKey(password)
+		rawPublicKey, err := newKey.GetPublicKey(password)
 		if err != nil {
 			fmt.Println(err)
 		} else {
@@ -315,65 +318,83 @@ func benchmark() {
 		x.SetBytes(rawPublicKey[:(keyLen / 2)])
 		y.SetBytes(rawPublicKey[(keyLen / 2):])
 
-		fmt.Printf("public key:\n%X\t%X\n",&x,&y)
+		fmt.Printf("public key:\n%X\t%X\n", &x, &y)
 
 		hash := sha256.Sum256(password[:])
-		sign, err := newkey.SignData(password,hash)
+		sign, err := newKey.SignData(password, hash)
 		if err != nil {
 			fmt.Println(err)
 		} else {
 			fmt.Println("SignData successed.")
 		}
 		//fmt.Printf("SignData:\n%X\n",sign)
-		signResult := newkey.Verify(rawPublicKey[:],hash[:],sign[:])
-		fmt.Printf("verify result: %v",signResult)
+		signResult := newKey.Verify(rawPublicKey[:], hash[:], sign[:])
+		fmt.Printf("verify result: %v", signResult)
 	}
 
 }
 
+func usage() {
+	fmt.Printf("usage: %s <-port SerialPortName>\n", os.Args[0])
+	flag.PrintDefaults()
+	os.Exit(2)
+}
+
 func main() {
-	newkey := NewKey{Name: SerialPort, Baud: 115200}
-	err := newkey.OpenPort()
+
+	serialPort := flag.String("port", "", "Serial Port Name, COM4 for example.")
+	flag.Parse()
+
+	if len(*serialPort) == 0 {
+		usage()
+	}
+
+	fmt.Printf("serial port: %s\n", *serialPort)
+	newKey := NewKey{Name: *serialPort, Baud: 115200}
+	err := newKey.OpenPort()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	serialNumber,err := newkey.ReadSerialNumber()
+	serialNumber, err := newKey.ReadSerialNumber()
 	if err != nil {
 		fmt.Println(err)
 	} else {
-		fmt.Printf("Serial Number: %X\n",serialNumber)
+		fmt.Printf("Serial Number: %X\n", serialNumber)
 	}
 
-	var password [32]byte
-	copy(password[:],DefaultPassword)
+	newKey.Port.Close()
+	return
 
-	err = newkey.ChangePassword(password,password)
+	var password [32]byte
+	copy(password[:], DefaultPassword)
+
+	err = newKey.ChangePassword(password, password)
 	if err != nil {
 		fmt.Println(err)
 	} else {
 		fmt.Println("ChangePassword successed.")
 	}
 
-	privateKey,err := ecdsa.GenerateKey(elliptic.P256(),rand.Reader)
+	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		fmt.Printf("GenerateKey error: %v",err)
+		fmt.Printf("GenerateKey error: %v", err)
 	}
 	pubKey := privateKey.PublicKey
 	fmt.Printf("private key:\n%X\n", privateKey.D)
-	fmt.Printf("public key:\n%X\t%X\n",pubKey.X,pubKey.Y)
+	fmt.Printf("public key:\n%X\t%X\n", pubKey.X, pubKey.Y)
 
 	var rawPrivateKey [32]byte
 	copy(rawPrivateKey[:], privateKey.D.Bytes())
 
-	err = newkey.WritePrivateKey(password,rawPrivateKey)
+	err = newKey.WritePrivateKey(password, rawPrivateKey)
 	if err != nil {
 		fmt.Println(err)
 	} else {
 		fmt.Println("WritePrivateKey successed.")
 	}
 
-	rawPublicKey, err := newkey.GetPublicKey(password)
+	rawPublicKey, err := newKey.GetPublicKey(password)
 	if err != nil {
 		fmt.Println(err)
 	} else {
@@ -386,25 +407,25 @@ func main() {
 	x.SetBytes(rawPublicKey[:(keyLen / 2)])
 	y.SetBytes(rawPublicKey[(keyLen / 2):])
 
-	fmt.Printf("public key:\n%X\t%X\n",&x,&y)
-	if x.Cmp(pubKey.X) == 0 && y.Cmp(pubKey.Y) == 0  {
+	fmt.Printf("public key:\n%X\t%X\n", &x, &y)
+	if x.Cmp(pubKey.X) == 0 && y.Cmp(pubKey.Y) == 0 {
 		fmt.Println("public key is ok.")
 	} else {
 		fmt.Println("public key is wrong.")
 	}
 
 	hash := sha256.Sum256(password[:])
-	sign, err := newkey.SignData(password,hash)
+	sign, err := newKey.SignData(password, hash)
 	if err != nil {
 		fmt.Println(err)
 	} else {
 		fmt.Println("SignData successed.")
 	}
 	//fmt.Printf("SignData:\n%X\n",sign)
-	signResult := newkey.Verify(rawPublicKey[:],hash[:],sign[:])
-	fmt.Printf("verify result: %v",signResult)
-	newkey.Port.Close()
+	signResult := newKey.Verify(rawPublicKey[:], hash[:], sign[:])
+	fmt.Printf("verify result: %v", signResult)
+	newKey.Port.Close()
 
-	benchmark()
+	//benchmark()
 
 }
